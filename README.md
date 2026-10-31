@@ -71,8 +71,6 @@ python -m pip install -r requirements.txt
 python -m pip install streamlit
 ```
 
-`Streamlit` is required by `frontend.py` but is not currently listed in `requirements.txt`.
-
 ## Run the application
 
 Start the API from the project directory:
