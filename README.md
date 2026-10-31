@@ -167,5 +167,5 @@ There is a mismatch in the current code: `schema/prediction_response.py` declare
 ## Notes
 
 - Predictions are estimates, not official insurance quotes.
-- `insurance.csv` is present, but the repository does not contain code or commands for retraining the model.
-- No project test files are currently present.
+
+
