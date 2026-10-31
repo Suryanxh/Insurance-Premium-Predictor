@@ -1,70 +1,132 @@
-# Insurance Premium Predictor
+# Insurance Premium Category Predictor
 
-A machine learning app that predicts a person's **insurance premium category** (e.g. Low / Medium / High) from basic personal and lifestyle details. It has a **FastAPI** backend that serves the trained model and a **Streamlit** frontend for entering details and viewing the result.
+This project estimates an insurance premium category (`Low`, `Medium`, or `High`) from a person's age, height, weight, income, smoking status, city, and occupation. It includes a Streamlit form for entering these details and a FastAPI service that validates the input, derives model features, and runs a pre-trained scikit-learn model.
+
+The repository includes a saved model and a CSV dataset, but no model-training script or training instructions. The application uses the saved model at runtime.
 
 ## Features
 
-- Predicts the premium category from a trained model (`model.pkl`)
-- REST API built with FastAPI
-- Clean Streamlit interface with a live BMI preview
-- Returns the predicted category (and confidence / class probabilities when the API provides them)
+- Interactive web form with a live BMI calculation and prediction display.
+- FastAPI endpoints for health checks and category predictions.
+- Input validation and feature derivation in the API.
+- Prediction confidence and per-class probabilities returned by the model.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    Person[User] --> UI[Streamlit form<br/>frontend.py]
+    UI -->|POST input fields| API[FastAPI service<br/>app.py]
+    API --> Schema[Validate input and derive features<br/>schema/user_input.py]
+    Schema --> Predict[Prediction function<br/>Model/predict.py]
+    Predict --> Model[(model.pkl)]
+    Predict --> API
+    API -->|Prediction response| UI
+    Config[City tier lists<br/>config/city_tier.py] --> Schema
+```
+
+The form sends raw user details to the API. The API computes BMI, age group, lifestyle risk, and city tier before passing those features to the model.
 
 ## Project structure
 
-```
-.
-├── app.py          # FastAPI backend (serves the model)
-├── frontend.py     # Streamlit frontend
-├── insurance.csv   # Dataset used to train the model
-├── model.pkl       # Trained model
-└── .gitignore
-```
+| Path | Purpose |
+| --- | --- |
+| `app.py` | FastAPI application and HTTP routes. |
+| `frontend.py` | Streamlit user interface; its API URL is set in this file. |
+| `schema/user_input.py` | Validates request fields and derives model features. |
+| `schema/prediction_response.py` | Declares the documented prediction response fields. |
+| `config/city_tier.py` | Lists the configured tier 1 and tier 2 cities. Other cities are treated as tier 3. |
+| `Model/predict.py` | Loads the saved model and calculates the prediction, confidence, and class probabilities. |
+| `Model/model.pkl` | Pre-trained scikit-learn pipeline loaded by the API. |
+| `insurance.csv` | Dataset with personal/lifestyle input columns and the `insurance_premium_category` target column. |
+| `requirements.txt` | Pinned Python package requirements. |
 
-## Inputs
+## Requirements and installation
 
-| Field        | Description                                   |
-| ------------ | --------------------------------------------- |
-| `age`        | Age in years                                  |
-| `weight`     | Weight in kg                                  |
-| `height`     | Height in metres                              |
-| `income_lpa` | Annual income in lakhs per annum              |
-| `smoker`     | Whether the person smokes (true / false)      |
-| `city`       | City of residence                             |
-| `occupation` | retired, freelancer, student, government_job, business_owner, unemployed, private_job |
+Use Python and pip. The repository does not declare a supported Python version; the current project environment uses Python 3.12. The model was verified to load with the pinned scikit-learn version in `requirements.txt`.
 
-## Getting started
+From the project directory, create and activate a virtual environment:
 
-### 1. Clone and set up
-
-```bash
-git clone https://github.com/Suryanxh/Insurance-Premium-Predictor.git
-cd Insurance-Premium-Predictor
-
+```powershell
 python -m venv .venv
-source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install fastapi uvicorn streamlit requests scikit-learn pandas pydantic
+.\.venv\Scripts\Activate.ps1
 ```
 
-### 2. Start the API
+In Command Prompt, activate it with:
 
-```bash
-uvicorn app:app --host 0.0.0.0 --port 8000
+```bat
+.venv\Scripts\activate.bat
 ```
 
-Interactive API docs are available at `http://localhost:8000/docs`.
+On macOS or Linux, activate it with:
 
-### 3. Start the frontend
+```sh
+source .venv/bin/activate
+```
 
-In `frontend.py`, set `API_URL` to your API address, for example `http://localhost:8000/predict`. Then run:
+Install the pinned dependencies and Streamlit:
 
-```bash
+```sh
+python -m pip install -r requirements.txt
+python -m pip install streamlit
+```
+
+`Streamlit` is required by `frontend.py` but is not currently listed in `requirements.txt`.
+
+## Run the application
+
+Start the API from the project directory:
+
+```sh
+python -m uvicorn app:app --reload
+```
+
+The API listens at `http://127.0.0.1:8000` by default. In a second terminal, with the same virtual environment active, start the UI:
+
+```sh
 streamlit run frontend.py
 ```
 
-## Example request
+Open the local URL printed by Streamlit in your browser. The frontend currently sends requests to `http://127.0.0.1:8000/predict`; to use a different API address, update `API_URL` in `frontend.py`. No environment variables are read by the application.
 
-```bash
-curl -X POST http://localhost:8000/predict \
+FastAPI's interactive API documentation is available at `http://127.0.0.1:8000/docs` while the API is running.
+
+## API
+
+### `GET /`
+
+Returns a short service message:
+
+```json
+{"message": "Insurance Premium Prediction API"}
+```
+
+### `GET /health`
+
+Returns the service status, model version, and whether the model loaded:
+
+```json
+{"status": "OK", "version": "1.0.0", "model_loaded": true}
+```
+
+### `POST /predict`
+
+Send a JSON body with these fields:
+
+| Field | Type | Validation / accepted values |
+| --- | --- | --- |
+| `age` | integer | Greater than 0 and less than 120. |
+| `weight` | number | Greater than 0; kilograms in the UI. |
+| `height` | number | Greater than 0 and less than 2.5; metres in the UI. |
+| `income_lpa` | number | Greater than 0; annual income in lakh per annum. |
+| `smoker` | boolean | `true` or `false`. |
+| `city` | string | Trimmed and converted to title case before city-tier lookup. |
+| `occupation` | string | `retired`, `freelancer`, `student`, `government_job`, `business_owner`, `unemployed`, or `private_job`. |
+
+Example request:
+
+```sh
+curl -X POST http://127.0.0.1:8000/predict \
   -H "Content-Type: application/json" \
   -d '{
     "age": 30,
@@ -77,11 +139,35 @@ curl -X POST http://localhost:8000/predict \
   }'
 ```
 
-## Tech stack
+The API derives model inputs as follows:
 
-Python, FastAPI, Streamlit, scikit-learn, pandas
+- BMI is `weight / height²`.
+- Age groups are `young` (under 25), `adult` (25–44), `middle_aged` (45–59), and `senior` (60 and older).
+- Lifestyle risk is `high` when the person smokes and has BMI above 30; otherwise it is `medium` when they smoke or have BMI above 27, and `low` in other cases.
+- Cities in `config/city_tier.py` are assigned tier 1 or 2; all other city names are assigned tier 3.
+
+#### Current prediction response shape
+
+The endpoint currently returns a nested object. For the example request, the response has this shape (prediction values are model output):
+
+```json
+{
+  "predicted_category": {
+    "predictes_category": "Low",
+    "confidence": 0.69,
+    "class_probabilities": {
+      "High": 0.01,
+      "Low": 0.69,
+      "Medium": 0.3
+    }
+  }
+}
+```
+
+There is a mismatch in the current code: `schema/prediction_response.py` declares a flat `predicted_category`, `confidence`, and `class_probabilities` response, while `app.py` wraps the prediction dictionary under `predicted_category`. The inner category key is also spelled `predictes_category` in `Model/predict.py`. The Streamlit UI handles the nested response, but API clients should account for this actual shape.
 
 ## Notes
 
-- Predictions are estimates and not an official insurance quote.
-- The model file depends on the scikit-learn version it was trained with, so use the same version when running the API.
+- Predictions are estimates, not official insurance quotes.
+- `insurance.csv` is present, but the repository does not contain code or commands for retraining the model.
+- No project test files are currently present.
